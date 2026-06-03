@@ -98,3 +98,68 @@ func TestUpdateTask(t *testing.T) {
 		t.Fatalf("title not updated: %+v", st.Tasks[taskID])
 	}
 }
+
+func seedTask(t *testing.T, ctx Ctx, listID string) string {
+	t.Helper()
+	add := cmdAddTask(ctx, ParseFlags([]string{"--title", "x", "--date", "2026-06-05", "--list", listID}))
+	return add.Data.(map[string]string)["id"]
+}
+
+func TestDeleteTaskSoftThenPermanent(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	taskID := seedTask(t, ctx, listID)
+	if res := cmdDeleteTask(ctx, ParseFlags([]string{taskID})); !res.OK {
+		t.Fatalf("soft delete failed: %+v", res)
+	}
+	st, _ := ctx.Store.Load()
+	if !st.Tasks[taskID].IsDeleted || st.Tasks[taskID].IsHiddenTrash {
+		t.Fatalf("want soft-deleted, got %+v", st.Tasks[taskID])
+	}
+	if res := cmdDeleteTask(ctx, ParseFlags([]string{taskID, "--permanently"})); !res.OK {
+		t.Fatalf("permanent delete failed: %+v", res)
+	}
+	st, _ = ctx.Store.Load()
+	if !st.Tasks[taskID].IsHiddenTrash {
+		t.Fatalf("want hidden, got %+v", st.Tasks[taskID])
+	}
+}
+
+func TestRestoreTask(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	taskID := seedTask(t, ctx, listID)
+	_ = cmdDeleteTask(ctx, ParseFlags([]string{taskID}))
+	if res := cmdRestoreTask(ctx, ParseFlags([]string{taskID})); !res.OK {
+		t.Fatalf("restore failed: %+v", res)
+	}
+	st, _ := ctx.Store.Load()
+	if st.Tasks[taskID].IsDeleted {
+		t.Fatalf("want restored, got %+v", st.Tasks[taskID])
+	}
+}
+
+func TestDeleteListCascades(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	taskID := seedTask(t, ctx, listID)
+	if res := cmdDeleteList(ctx, ParseFlags([]string{listID})); !res.OK {
+		t.Fatalf("delete-list failed: %+v", res)
+	}
+	st, _ := ctx.Store.Load()
+	if !st.Lists[listID].IsDeleted || !st.Tasks[taskID].IsDeleted {
+		t.Fatalf("cascade failed: list=%+v task=%+v", st.Lists[listID], st.Tasks[taskID])
+	}
+}
+
+func TestUpdateList(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	if res := cmdUpdateList(ctx, ParseFlags([]string{listID, "--name", "Renamed"})); !res.OK {
+		t.Fatalf("update-list failed: %+v", res)
+	}
+	st, _ := ctx.Store.Load()
+	if st.Lists[listID].Name != "Renamed" {
+		t.Fatalf("rename failed: %+v", st.Lists[listID])
+	}
+}

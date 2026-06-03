@@ -109,3 +109,80 @@ func cmdCompleteTask(ctx Ctx, flags map[string]string) response.Envelope {
 	}
 	return response.Success(map[string]string{"id": id, "status": "completed"})
 }
+
+func cmdDeleteTask(ctx Ctx, flags map[string]string) response.Envelope {
+	id := flags["_"]
+	if id == "" {
+		return response.Error("invalid_operation", "delete-task requires a task id")
+	}
+	st, err := ctx.Store.Load()
+	if err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	if _, ok := st.Tasks[id]; !ok {
+		return response.Error("task_not_found", "Task "+id+" does not exist")
+	}
+	evType := events.TypeTaskDeleted
+	if flags["permanently"] == "true" {
+		evType = events.TypeTaskPermanentlyDeleted
+	}
+	if err := ctx.Store.Append(events.Event{Type: evType, At: ctx.Now, TaskID: id}); err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	return response.Success(map[string]string{"id": id})
+}
+
+func cmdRestoreTask(ctx Ctx, flags map[string]string) response.Envelope {
+	id := flags["_"]
+	if id == "" {
+		return response.Error("invalid_operation", "restore-task requires a task id")
+	}
+	st, err := ctx.Store.Load()
+	if err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	if _, ok := st.Tasks[id]; !ok {
+		return response.Error("task_not_found", "Task "+id+" does not exist")
+	}
+	if err := ctx.Store.Append(events.Event{Type: events.TypeTaskRestored, At: ctx.Now, TaskID: id}); err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	return response.Success(map[string]string{"id": id})
+}
+
+func cmdUpdateList(ctx Ctx, flags map[string]string) response.Envelope {
+	id := flags["_"]
+	name := flags["name"]
+	if id == "" || name == "" {
+		return response.Error("invalid_operation", "update-list requires a list id and --name")
+	}
+	st, err := ctx.Store.Load()
+	if err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	if _, ok := st.Lists[id]; !ok {
+		return response.Error("list_not_found", "List "+id+" does not exist")
+	}
+	if err := ctx.Store.Append(events.Event{Type: events.TypeListUpdated, At: ctx.Now, ListID: id, Updates: map[string]string{"name": name}}); err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	return response.Success(map[string]string{"id": id, "name": name})
+}
+
+func cmdDeleteList(ctx Ctx, flags map[string]string) response.Envelope {
+	id := flags["_"]
+	if id == "" {
+		return response.Error("invalid_operation", "delete-list requires a list id")
+	}
+	st, err := ctx.Store.Load()
+	if err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	if _, ok := st.Lists[id]; !ok {
+		return response.Error("list_not_found", "List "+id+" does not exist")
+	}
+	if err := ctx.Store.Append(events.Event{Type: events.TypeListDeleted, At: ctx.Now, ListID: id}); err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	return response.Success(map[string]string{"id": id})
+}
