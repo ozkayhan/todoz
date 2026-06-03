@@ -30,18 +30,62 @@ Exit code is 0 on success, 1 on failure. Always check `ok`.
 ## 4. Command Directory
 
 ### load
-`todoz load [--list <listId>]`
+`todoz load [flags]`
 
 Returns: `{"lists": [...], "tasks": [...], "trash": [...]}`
+When `--group-by` is set, returns: `{"groups": {"2026-06-01": [...]}, "lists": [...], "summary": {...}}`
 
-Each task includes computed `isOverdue` (true if pending AND date < today).
+#### Filtering Flags
+| Flag | Description |
+|------|-------------|
+| `--days-back N` | Tasks with date ≥ today minus N days |
+| `--after-date YYYY-MM-DD` | Tasks with date ≥ this date (mutually exclusive with `--days-back`) |
+| `--before-date YYYY-MM-DD` | Tasks with date ≤ this date |
+| `--status pending\|completed` | Only tasks with this status |
+| `--overdue` | Only pending tasks where date < today |
+| `--lists "id1,id2"` | Only tasks in these list IDs (comma-separated) |
+| `--list id` | Filter to a single list ID (legacy, still supported) |
+| `--search TEXT` | Substring match on title or description (case-insensitive) |
+| `--no-trash` | Exclude trash from response |
+| `--trash-only` | Return only trash tasks (mutually exclusive with `--no-trash`) |
 
-Example:
+#### Sorting Flags
+| Flag | Description |
+|------|-------------|
+| `--sort-by date\|title\|created\|status` | Sort field (default: date) |
+| `--sort-reverse` | Reverse sort order |
+
+#### Grouping Flags
+| Flag | Description |
+|------|-------------|
+| `--group-by list\|date\|status` | Group tasks; changes response shape to `groups` map |
+
+#### Output / Aggregation Flags
+| Flag | Description |
+|------|-------------|
+| `--summary` | Append `{"total":N,"pending":N,"completed":N,"overdue":N}` to response |
+| `--count` | Same as `--summary` (only counts) |
+
+#### Conflict Rules
+- `--days-back` and `--after-date` cannot be used together
+- `--no-trash` and `--trash-only` cannot be used together
+
+#### Examples
 ```bash
-todoz load
-```
-```json
-{"ok":true,"data":{"lists":[{"id":"list-abc","name":"Groceries","createdAt":"2026-06-03T10:00:00.000000+03:00","isDeleted":false}],"tasks":[{"id":"task-xyz","title":"Buy milk","description":"","listId":"list-abc","date":"2026-06-05","status":"pending","isOverdue":false,"isDeleted":false,"isHiddenTrash":false,"createdAt":"2026-06-03T10:00:00.000000+03:00","updatedAt":"2026-06-03T10:00:00.000000+03:00","completedAt":"","deletedAt":""}],"trash":[]}}
+# Last 7 days, pending only
+todoz load --days-back 7 --status pending
+
+# Overdue tasks grouped by list
+todoz load --overdue --group-by list
+
+# Search in a date range, sorted descending
+todoz load --after-date 2026-05-01 --before-date 2026-06-01 --search "urgent" --sort-by date --sort-reverse
+
+# Summary stats for all tasks
+todoz load --summary
+
+# Tasks in two lists, grouped by date
+todoz load --lists "list-abc,list-def" --group-by date
 ```
 
 ### add-task

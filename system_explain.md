@@ -45,7 +45,7 @@ Single user, thousands of tasks, dozens of lists, multi-process safe.
 | `store` | log read/append, lock, compact | disk | config, events, state, model |
 | `oplog` | audit log blocks | disk | – |
 | `response` | JSON envelope | none | – |
-| `cli` | parse, dispatch, record | via store/oplog | all of the above |
+| `cli` | parse, dispatch, query pipeline, record | via store/oplog | all of the above |
 | `cmd/todoz` | process entry | stdout/exit | cli |
 
 ## 4. Data Model
@@ -177,3 +177,21 @@ Transitions:
 3. Add a case in `snapshotEvents()` in `internal/store/compact.go` if the event represents state
 
 This architecture keeps concerns separated (model, events, state, store, oplog, cli) and makes each layer independently testable.
+
+## 14. Query Pipeline (Sprint2)
+
+The `load` command supports rich filtering, sorting, grouping, and aggregation via the query layer in `internal/cli`:
+
+**QueryOptions:** Parsed flag representation of all query parameters (dates, status, lists, search text, sort order, grouping strategy, summary request).
+
+**ValidateQueryFlags:** Pre-parse validation in `query_validate.go` detects conflicting flags early (e.g., `--days-back` + `--after-date`, or `--no-trash` + `--trash-only`) and validates enum values (status, sort-by, group-by, output-format).
+
+**ApplyQuery:** Pure stateless pipeline in `query.go` that:
+1. Filters tasks by date range (AfterDate/BeforeDate/DaysBack), status, overdue, list membership, and search text
+2. Sorts by the requested field (date, title, created, status) with optional reverse
+3. Groups by list name, date, or status (if `--group-by` specified), else returns flat array
+4. Computes QuerySummary (total, pending, completed, overdue counts) if requested
+
+**Response shape:** Normally `{"lists": [...], "tasks": [...], "trash": [...]}`. With `--group-by`, becomes `{"groups": {"key1": [...], ...}, "lists": [...], "summary": {...}}` (summary only if `--summary` or `--count` flag).
+
+All filtering is case-insensitive for search. Dates are YYYY-MM-DD strings, compared lexicographically (safe for dates). Overdue computation uses the Today timestamp from context.
