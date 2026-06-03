@@ -5,10 +5,14 @@
 // non-zero on failure. See USAGE.md for the full integration contract.
 package main
 
-import "os"
+import (
+	"fmt"
+	"os"
+	"todoz/internal/cli"
+)
 
 func main() {
-	// Wired to the CLI router in Task 26. For now it is an inert skeleton
-	// so the module compiles from the very first commit.
-	os.Exit(0)
+	out, code := cli.Run(os.Args[1:])
+	fmt.Println(out)
+	os.Exit(code)
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -14,6 +15,9 @@ type Lock struct {
 // timeoutMS milliseconds. Returns an error if the lock cannot be acquired
 // within the timeout.
 func Acquire(path string, timeoutMS int) (*Lock, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
 	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
 	for {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
