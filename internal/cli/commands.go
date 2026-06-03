@@ -204,40 +204,68 @@ type LoadView struct {
 	Trash []model.Task `json:"trash"`
 }
 
-// cmdLoad returns the full active view plus trash. Optional --list filters tasks (and trash) to a single list.
+// GroupedLoadView is returned by cmdLoad when --group-by is set.
+type GroupedLoadView struct {
+	Groups  map[string][]model.Task `json:"groups"`
+	Lists   []model.List            `json:"lists"`
+	Summary *QuerySummary           `json:"summary,omitempty"`
+}
+
+// cmdLoad returns filtered, sorted, optionally grouped tasks.
 func cmdLoad(ctx Ctx, flags map[string]string) response.Envelope {
+	if err := ValidateQueryFlags(flags); err != nil {
+		return response.Error("invalid_operation", err.Error())
+	}
+	opts, err := ParseQueryOptions(flags)
+	if err != nil {
+		return response.Error("invalid_operation", err.Error())
+	}
 	st, err := ctx.Store.Load()
 	if err != nil {
 		return response.Error("io_error", err.Error())
 	}
-	filter := flags["list"]
-	view := LoadView{Lists: []model.List{}, Tasks: []model.Task{}, Trash: []model.Task{}}
-	for _, l := range st.ActiveLists() {
-		if filter != "" && l.ID != filter {
-			continue
-		}
-		view.Lists = append(view.Lists, l)
+
+	var sourceTasks []model.Task
+	if opts.TrashOnly {
+		sourceTasks = st.TrashTasks()
+	} else {
+		sourceTasks = st.ActiveTasks()
 	}
-	for _, tk := range st.ActiveTasks() {
-		if filter != "" && tk.ListID != filter {
-			continue
-		}
-		tk.IsOverdue = model.ComputeOverdue(tk, ctx.Today)
-		view.Tasks = append(view.Tasks, tk)
+
+	for i := range sourceTasks {
+		sourceTasks[i].IsOverdue = model.ComputeOverdue(sourceTasks[i], ctx.Today)
 	}
-	for _, tk := range st.TrashTasks() {
-		if filter != "" && tk.ListID != filter {
-			continue
+
+	activeLists := st.ActiveLists()
+	sort.Slice(activeLists, func(i, j int) bool { return activeLists[i].CreatedAt < activeLists[j].CreatedAt })
+
+	result := ApplyQuery(sourceTasks, activeLists, opts, ctx.Today)
+
+	if opts.GroupBy != "" {
+		view := GroupedLoadView{
+			Groups:  result.Groups,
+			Lists:   activeLists,
+			Summary: result.Summary,
 		}
-		view.Trash = append(view.Trash, tk)
+		return response.Success(view)
 	}
-	sort.Slice(view.Tasks, func(i, j int) bool {
-		if view.Tasks[i].Date != view.Tasks[j].Date {
-			return view.Tasks[i].Date < view.Tasks[j].Date
+
+	trash := []model.Task{}
+	if !opts.TrashOnly && !opts.NoTrash {
+		trash = st.TrashTasks()
+	}
+	view := LoadView{
+		Lists: activeLists,
+		Tasks: result.Tasks,
+		Trash: trash,
+	}
+	if result.Summary != nil {
+		type loadWithSummary struct {
+			LoadView
+			Summary *QuerySummary `json:"summary"`
 		}
-		return view.Tasks[i].ID < view.Tasks[j].ID
-	})
-	sort.Slice(view.Lists, func(i, j int) bool { return view.Lists[i].CreatedAt < view.Lists[j].CreatedAt })
+		return response.Success(loadWithSummary{view, result.Summary})
+	}
 	return response.Success(view)
 }
 

@@ -214,3 +214,80 @@ func TestCompactCommand(t *testing.T) {
 		t.Fatalf("state lost after compact: %+v", st)
 	}
 }
+
+func seedTaskWithDate(t *testing.T, ctx Ctx, listID, title, date string) string {
+	t.Helper()
+	res := cmdAddTask(ctx, ParseFlags([]string{"--title", title, "--date", date, "--list", listID}))
+	if !res.OK {
+		t.Fatalf("seedTask failed: %+v", res)
+	}
+	return res.Data.(map[string]string)["id"]
+}
+
+func TestCmdLoad_DaysBack(t *testing.T) {
+	ctx := testCtx(t)
+	ctx.Today = "2026-06-03"
+	listID := seedList(t, ctx)
+	seedTaskWithDate(t, ctx, listID, "Old", "2026-05-20")
+	seedTaskWithDate(t, ctx, listID, "Recent", "2026-06-01")
+	res := cmdLoad(ctx, ParseFlags([]string{"--days-back", "7"}))
+	if !res.OK {
+		t.Fatalf("load failed: %+v", res)
+	}
+	view := res.Data.(LoadView)
+	if len(view.Tasks) != 1 || view.Tasks[0].Title != "Recent" {
+		t.Fatalf("want [Recent], got %+v", view.Tasks)
+	}
+}
+
+func TestCmdLoad_StatusFilter(t *testing.T) {
+	ctx := testCtx(t)
+	ctx.Today = "2026-06-03"
+	listID := seedList(t, ctx)
+	taskID := seedTaskWithDate(t, ctx, listID, "T1", "2026-06-05")
+	seedTaskWithDate(t, ctx, listID, "T2", "2026-06-06")
+	cmdCompleteTask(ctx, ParseFlags([]string{taskID}))
+	res := cmdLoad(ctx, ParseFlags([]string{"--status", "pending"}))
+	view := res.Data.(LoadView)
+	if len(view.Tasks) != 1 || view.Tasks[0].Title != "T2" {
+		t.Fatalf("want [T2], got %+v", view.Tasks)
+	}
+}
+
+func TestCmdLoad_SortByTitleReverse(t *testing.T) {
+	ctx := testCtx(t)
+	ctx.Today = "2026-06-03"
+	listID := seedList(t, ctx)
+	seedTaskWithDate(t, ctx, listID, "Bravo", "2026-06-01")
+	seedTaskWithDate(t, ctx, listID, "Alpha", "2026-06-02")
+	seedTaskWithDate(t, ctx, listID, "Charlie", "2026-06-03")
+	res := cmdLoad(ctx, ParseFlags([]string{"--sort-by", "title", "--sort-reverse"}))
+	view := res.Data.(LoadView)
+	if view.Tasks[0].Title != "Charlie" {
+		t.Fatalf("want Charlie first, got %s", view.Tasks[0].Title)
+	}
+}
+
+func TestCmdLoad_ConflictError(t *testing.T) {
+	ctx := testCtx(t)
+	res := cmdLoad(ctx, ParseFlags([]string{"--days-back", "7", "--after-date", "2026-01-01"}))
+	if res.OK || res.ErrCode != "invalid_operation" {
+		t.Fatalf("want invalid_operation, got %+v", res)
+	}
+}
+
+func TestCmdLoad_GroupBy(t *testing.T) {
+	ctx := testCtx(t)
+	ctx.Today = "2026-06-03"
+	listID := seedList(t, ctx)
+	seedTaskWithDate(t, ctx, listID, "T1", "2026-06-01")
+	seedTaskWithDate(t, ctx, listID, "T2", "2026-06-02")
+	res := cmdLoad(ctx, ParseFlags([]string{"--group-by", "date"}))
+	if !res.OK {
+		t.Fatalf("load failed: %+v", res)
+	}
+	view := res.Data.(GroupedLoadView)
+	if len(view.Groups) != 2 {
+		t.Fatalf("want 2 date groups, got %d: %+v", len(view.Groups), view.Groups)
+	}
+}
