@@ -36,3 +36,65 @@ func TestAddListRequiresName(t *testing.T) {
 		t.Fatalf("expected invalid_operation, got %+v", res)
 	}
 }
+
+func seedList(t *testing.T, ctx Ctx) string {
+	t.Helper()
+	res := cmdAddList(ctx, ParseFlags([]string{"--name", "L"}))
+	return res.Data.(map[string]string)["id"]
+}
+
+func TestAddTaskSuccess(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	res := cmdAddTask(ctx, ParseFlags([]string{"--title", "Buy milk", "--date", "2026-06-05", "--list", listID}))
+	if !res.OK {
+		t.Fatalf("expected ok, got %+v", res)
+	}
+}
+
+func TestAddTaskRejectsBadDate(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	res := cmdAddTask(ctx, ParseFlags([]string{"--title", "x", "--date", "06-05-2026", "--list", listID}))
+	if res.OK || res.ErrCode != "invalid_date" {
+		t.Fatalf("expected invalid_date, got %+v", res)
+	}
+}
+
+func TestAddTaskRejectsMissingList(t *testing.T) {
+	ctx := testCtx(t)
+	res := cmdAddTask(ctx, ParseFlags([]string{"--title", "x", "--date", "2026-06-05", "--list", "nope"}))
+	if res.OK || res.ErrCode != "list_not_found" {
+		t.Fatalf("expected list_not_found, got %+v", res)
+	}
+}
+
+func TestCompleteTask(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	add := cmdAddTask(ctx, ParseFlags([]string{"--title", "x", "--date", "2026-06-05", "--list", listID}))
+	taskID := add.Data.(map[string]string)["id"]
+	res := cmdCompleteTask(ctx, ParseFlags([]string{taskID}))
+	if !res.OK {
+		t.Fatalf("complete failed: %+v", res)
+	}
+	st, _ := ctx.Store.Load()
+	if st.Tasks[taskID].Status != "completed" {
+		t.Fatalf("task not completed: %+v", st.Tasks[taskID])
+	}
+}
+
+func TestUpdateTask(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	add := cmdAddTask(ctx, ParseFlags([]string{"--title", "Old", "--date", "2026-06-05", "--list", listID}))
+	taskID := add.Data.(map[string]string)["id"]
+	res := cmdUpdateTask(ctx, ParseFlags([]string{taskID, "--title", "New"}))
+	if !res.OK {
+		t.Fatalf("update failed: %+v", res)
+	}
+	st, _ := ctx.Store.Load()
+	if st.Tasks[taskID].Title != "New" {
+		t.Fatalf("title not updated: %+v", st.Tasks[taskID])
+	}
+}
