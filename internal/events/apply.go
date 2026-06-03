@@ -25,5 +25,26 @@ func Apply(s *state.State, e Event) {
 			CreatedAt:   e.At,
 			UpdatedAt:   e.At,
 		}
+	case TypeTaskUpdated:
+		if t, ok := s.Tasks[e.TaskID]; ok {
+			if v, has := e.Updates["title"]; has {
+				t.Title = v
+			}
+			if v, has := e.Updates["description"]; has {
+				t.Description = v
+			}
+			if v, has := e.Updates["date"]; has {
+				t.Date = v
+			}
+			t.UpdatedAt = e.At
+			s.Tasks[e.TaskID] = t
+		}
+	case TypeTaskCompleted:
+		if t, ok := s.Tasks[e.TaskID]; ok {
+			t.Status = model.StatusCompleted
+			t.CompletedAt = e.At
+			t.UpdatedAt = e.At
+			s.Tasks[e.TaskID] = t
+		}
 	}
 }
