@@ -46,5 +46,48 @@ func Apply(s *state.State, e Event) {
 			t.UpdatedAt = e.At
 			s.Tasks[e.TaskID] = t
 		}
+	case TypeTaskDeleted:
+		if t, ok := s.Tasks[e.TaskID]; ok {
+			t.IsDeleted = true
+			t.DeletedAt = e.At
+			t.UpdatedAt = e.At
+			s.Tasks[e.TaskID] = t
+		}
+	case TypeTaskPermanentlyDeleted:
+		if t, ok := s.Tasks[e.TaskID]; ok {
+			t.IsDeleted = true
+			t.IsHiddenTrash = true
+			t.UpdatedAt = e.At
+			s.Tasks[e.TaskID] = t
+		}
+	case TypeTaskRestored:
+		if t, ok := s.Tasks[e.TaskID]; ok {
+			t.IsDeleted = false
+			t.IsHiddenTrash = false
+			t.DeletedAt = ""
+			t.UpdatedAt = e.At
+			s.Tasks[e.TaskID] = t
+		}
+	case TypeListUpdated:
+		if l, ok := s.Lists[e.ListID]; ok {
+			if v, has := e.Updates["name"]; has {
+				l.Name = v
+			}
+			s.Lists[e.ListID] = l
+		}
+	case TypeListDeleted:
+		if l, ok := s.Lists[e.ListID]; ok {
+			l.IsDeleted = true
+			s.Lists[e.ListID] = l
+		}
+		// Cascade: soft-delete all tasks in this list
+		for id, t := range s.Tasks {
+			if t.ListID == e.ListID && !t.IsDeleted {
+				t.IsDeleted = true
+				t.DeletedAt = e.At
+				t.UpdatedAt = e.At
+				s.Tasks[id] = t
+			}
+		}
 	}
 }
