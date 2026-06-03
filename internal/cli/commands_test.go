@@ -163,3 +163,40 @@ func TestUpdateList(t *testing.T) {
 		t.Fatalf("rename failed: %+v", st.Lists[listID])
 	}
 }
+
+func TestLoadReturnsViewWithOverdue(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	_ = cmdAddTask(ctx, ParseFlags([]string{"--title", "late", "--date", "2026-06-01", "--list", listID}))
+	_ = cmdAddTask(ctx, ParseFlags([]string{"--title", "soon", "--date", "2026-06-10", "--list", listID}))
+	res := cmdLoad(ctx, ParseFlags([]string{}))
+	if !res.OK {
+		t.Fatalf("load failed: %+v", res)
+	}
+	view := res.Data.(LoadView)
+	if len(view.Lists) != 1 || len(view.Tasks) != 2 {
+		t.Fatalf("unexpected view counts: %+v", view)
+	}
+	var overdueCount int
+	for _, tk := range view.Tasks {
+		if tk.IsOverdue {
+			overdueCount++
+		}
+	}
+	if overdueCount != 1 {
+		t.Fatalf("want 1 overdue, got %d", overdueCount)
+	}
+}
+
+func TestLoadFilterByList(t *testing.T) {
+	ctx := testCtx(t)
+	a := seedList(t, ctx)
+	b := seedList(t, ctx)
+	_ = seedTask(t, ctx, a)
+	_ = seedTask(t, ctx, b)
+	res := cmdLoad(ctx, ParseFlags([]string{"--list", a}))
+	view := res.Data.(LoadView)
+	if len(view.Tasks) != 1 || view.Tasks[0].ListID != a {
+		t.Fatalf("filter failed: %+v", view.Tasks)
+	}
+}

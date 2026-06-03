@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"sort"
 	"todoz/internal/events"
 	"todoz/internal/ids"
+	"todoz/internal/model"
 	"todoz/internal/response"
 	"todoz/internal/store"
 )
@@ -185,4 +187,46 @@ func cmdDeleteList(ctx Ctx, flags map[string]string) response.Envelope {
 		return response.Error("io_error", err.Error())
 	}
 	return response.Success(map[string]string{"id": id})
+}
+
+type LoadView struct {
+	Lists []model.List `json:"lists"`
+	Tasks []model.Task `json:"tasks"`
+	Trash []model.Task `json:"trash"`
+}
+
+func cmdLoad(ctx Ctx, flags map[string]string) response.Envelope {
+	st, err := ctx.Store.Load()
+	if err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	filter := flags["list"]
+	view := LoadView{Lists: []model.List{}, Tasks: []model.Task{}, Trash: []model.Task{}}
+	for _, l := range st.ActiveLists() {
+		if filter != "" && l.ID != filter {
+			continue
+		}
+		view.Lists = append(view.Lists, l)
+	}
+	for _, tk := range st.ActiveTasks() {
+		if filter != "" && tk.ListID != filter {
+			continue
+		}
+		tk.IsOverdue = model.ComputeOverdue(tk, ctx.Today)
+		view.Tasks = append(view.Tasks, tk)
+	}
+	for _, tk := range st.TrashTasks() {
+		if filter != "" && tk.ListID != filter {
+			continue
+		}
+		view.Trash = append(view.Trash, tk)
+	}
+	sort.Slice(view.Tasks, func(i, j int) bool {
+		if view.Tasks[i].Date != view.Tasks[j].Date {
+			return view.Tasks[i].Date < view.Tasks[j].Date
+		}
+		return view.Tasks[i].ID < view.Tasks[j].ID
+	})
+	sort.Slice(view.Lists, func(i, j int) bool { return view.Lists[i].CreatedAt < view.Lists[j].CreatedAt })
+	return response.Success(view)
 }
