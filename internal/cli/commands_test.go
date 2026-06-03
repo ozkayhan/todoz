@@ -200,3 +200,17 @@ func TestLoadFilterByList(t *testing.T) {
 		t.Fatalf("filter failed: %+v", view.Tasks)
 	}
 }
+
+func TestCompactCommand(t *testing.T) {
+	ctx := testCtx(t)
+	listID := seedList(t, ctx)
+	_ = seedTask(t, ctx, listID)
+	res := cmdCompact(ctx, ParseFlags([]string{}))
+	if !res.OK {
+		t.Fatalf("compact failed: %+v", res)
+	}
+	st, _ := ctx.Store.Load()
+	if len(st.ActiveLists()) != 1 || len(st.ActiveTasks()) != 1 {
+		t.Fatalf("state lost after compact: %+v", st)
+	}
+}

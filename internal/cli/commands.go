@@ -230,3 +230,10 @@ func cmdLoad(ctx Ctx, flags map[string]string) response.Envelope {
 	sort.Slice(view.Lists, func(i, j int) bool { return view.Lists[i].CreatedAt < view.Lists[j].CreatedAt })
 	return response.Success(view)
 }
+
+func cmdCompact(ctx Ctx, _ map[string]string) response.Envelope {
+	if err := ctx.Store.Compact(); err != nil {
+		return response.Error("io_error", err.Error())
+	}
+	return response.Success(map[string]string{"status": "compacted"})
+}
