@@ -78,6 +78,7 @@ func Apply(s *state.State, e Event) {
 	case TypeListDeleted:
 		if l, ok := s.Lists[e.ListID]; ok {
 			l.IsDeleted = true
+			l.DeletedAt = e.At
 			s.Lists[e.ListID] = l
 		}
 		// Cascade: soft-delete all tasks in this list

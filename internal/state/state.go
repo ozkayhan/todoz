@@ -29,7 +29,7 @@ func (s State) ActiveTasks() []model.Task {
 
 // TrashTasks returns tasks that are deleted but not hidden trash.
 func (s State) TrashTasks() []model.Task {
-	out := make([]model.Task, 0)
+	out := make([]model.Task, 0, len(s.Tasks))
 	for _, t := range s.Tasks {
 		if t.IsDeleted && !t.IsHiddenTrash {
 			out = append(out, t)

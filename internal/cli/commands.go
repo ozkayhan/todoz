@@ -17,6 +17,7 @@ type Ctx struct {
 
 type Handler func(ctx Ctx, flags map[string]string) response.Envelope
 
+// cmdAddList creates a new list. Required flag: --name.
 func cmdAddList(ctx Ctx, flags map[string]string) response.Envelope {
 	name := flags["name"]
 	if name == "" {
@@ -32,6 +33,7 @@ func cmdAddList(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(map[string]string{"id": id, "name": name})
 }
 
+// cmdAddTask creates a task. Required: --title, --date (YYYY-MM-DD), --list. Optional: --description.
 func cmdAddTask(ctx Ctx, flags map[string]string) response.Envelope {
 	title := flags["title"]
 	date := flags["date"]
@@ -60,6 +62,7 @@ func cmdAddTask(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(map[string]string{"id": id, "title": title, "listId": listID, "date": date})
 }
 
+// cmdUpdateTask updates a task's title, description, and/or date. Positional: task ID. At least one --flag required.
 func cmdUpdateTask(ctx Ctx, flags map[string]string) response.Envelope {
 	id := flags["_"]
 	if id == "" {
@@ -94,6 +97,7 @@ func cmdUpdateTask(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(map[string]string{"id": id})
 }
 
+// cmdCompleteTask marks a task completed. Positional: task ID.
 func cmdCompleteTask(ctx Ctx, flags map[string]string) response.Envelope {
 	id := flags["_"]
 	if id == "" {
@@ -112,6 +116,7 @@ func cmdCompleteTask(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(map[string]string{"id": id, "status": "completed"})
 }
 
+// cmdDeleteTask soft-deletes a task (to trash). With --permanently it hides the task from apps forever.
 func cmdDeleteTask(ctx Ctx, flags map[string]string) response.Envelope {
 	id := flags["_"]
 	if id == "" {
@@ -134,6 +139,7 @@ func cmdDeleteTask(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(map[string]string{"id": id})
 }
 
+// cmdRestoreTask brings a soft-deleted task back out of the trash.
 func cmdRestoreTask(ctx Ctx, flags map[string]string) response.Envelope {
 	id := flags["_"]
 	if id == "" {
@@ -152,6 +158,7 @@ func cmdRestoreTask(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(map[string]string{"id": id})
 }
 
+// cmdUpdateList renames a list. Required: positional list id, --name.
 func cmdUpdateList(ctx Ctx, flags map[string]string) response.Envelope {
 	id := flags["_"]
 	name := flags["name"]
@@ -171,6 +178,7 @@ func cmdUpdateList(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(map[string]string{"id": id, "name": name})
 }
 
+// cmdDeleteList soft-deletes a list and cascades to all its tasks.
 func cmdDeleteList(ctx Ctx, flags map[string]string) response.Envelope {
 	id := flags["_"]
 	if id == "" {
@@ -189,12 +197,14 @@ func cmdDeleteList(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(map[string]string{"id": id})
 }
 
+// LoadView is the read model returned by the load command: active lists, active tasks (with IsOverdue computed), and the current trash.
 type LoadView struct {
 	Lists []model.List `json:"lists"`
 	Tasks []model.Task `json:"tasks"`
 	Trash []model.Task `json:"trash"`
 }
 
+// cmdLoad returns the full active view plus trash. Optional --list filters tasks (and trash) to a single list.
 func cmdLoad(ctx Ctx, flags map[string]string) response.Envelope {
 	st, err := ctx.Store.Load()
 	if err != nil {
@@ -231,6 +241,7 @@ func cmdLoad(ctx Ctx, flags map[string]string) response.Envelope {
 	return response.Success(view)
 }
 
+// cmdCompact rewrites the event log to its minimal form (see store.Compact).
 func cmdCompact(ctx Ctx, _ map[string]string) response.Envelope {
 	if err := ctx.Store.Compact(); err != nil {
 		return response.Error("io_error", err.Error())

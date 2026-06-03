@@ -49,7 +49,7 @@ func snapshotEvents(st state.State) []events.Event {
 		})
 		if l.IsDeleted {
 			out = append(out, events.Event{
-				Type: events.TypeListDeleted, At: l.CreatedAt,
+				Type: events.TypeListDeleted, At: l.DeletedAt,
 				ListID: l.ID,
 			})
 		}

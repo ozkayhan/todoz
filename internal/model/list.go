@@ -11,4 +11,6 @@ type List struct {
 	CreatedAt string `json:"createdAt"`
 	// IsDeleted marks the list as soft-deleted.
 	IsDeleted bool `json:"isDeleted"`
+	// DeletedAt is set when the list is soft-deleted (else empty).
+	DeletedAt string `json:"deletedAt,omitempty"`
 }
